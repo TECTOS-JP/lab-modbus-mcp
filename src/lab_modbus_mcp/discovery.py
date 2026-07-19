@@ -10,12 +10,20 @@ from lab_modbus_mcp.backend import ModbusBackend
 
 
 def make_backend(config: dict[str, Any] | None = None) -> BackendRegistration:
-    """Construct the unconnected MB-1 backend from strict configuration."""
+    """Construct the MB-2 backend from strict configuration."""
     if config is None:
         config = {}
     if not isinstance(config, dict):
         raise TypeError("modbus backend config must be a mapping")
-    unknown = set(config) - {"resources"}
+    allowed = {
+        "resources",
+        "read_retries",
+        "baudrate",
+        "bytesize",
+        "parity",
+        "stopbits",
+    }
+    unknown = set(config) - allowed
     if unknown:
         raise ValueError(f"unknown modbus backend config keys: {sorted(unknown)!r}")
     resources = config.get("resources", [])
@@ -23,8 +31,9 @@ def make_backend(config: dict[str, Any] | None = None) -> BackendRegistration:
         isinstance(resource, str) for resource in resources
     ):
         raise TypeError("modbus backend resources must be list[str]")
+    options = {key: value for key, value in config.items() if key != "resources"}
     return BackendRegistration(
-        backend=ModbusBackend(resources=resources),
+        backend=ModbusBackend(resources=resources, **options),
         prefixes=("MODBUS::",),
     )
 

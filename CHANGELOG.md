@@ -15,6 +15,12 @@
 - `lab_executor.backends` entry-point registration with `MODBUS::` ownership.
 - BEF backend-conformance, fail-closed grammar, round-trip, word-order,
   resource-parser, discovery, and packaging tests.
+- MB-2 asynchronous pymodbus 3.x transport for configured TCP and RTU
+  resources, with lazy reusable connections and synchronous idempotent close.
+- Physical-bus transaction locks, per-call timeouts, read-only configurable
+  retries, explicit exception-response errors, and atomic 32-bit writes.
+- Real-loopback pymodbus TCP integration tests plus isolated RTU construction,
+  parameter-forwarding, and serial-port-lock tests.
 
 ### Fixed
 

@@ -5,11 +5,10 @@ Modbus RTU / TCP instrument backend package for
 
 ## Status
 
-MB-1 provides the package skeleton, strict wire-command grammar, resource-name
-parser, in-memory `MockModbusBackend`, backend entry point, and an importable
-`ModbusBackend` skeleton. Real RTU/TCP transport is intentionally not included;
-it is scheduled for MB-2. The skeleton validates its input and then raises
-`ModbusTransportUnavailable` without importing pymodbus or touching a bus.
+MB-2 provides asynchronous Modbus TCP and RTU transport through pymodbus 3.x,
+in addition to the strict MB-1 grammar, codecs, resource parser, and in-memory
+mock. Connections are opened lazily and reused until communication fails or
+`close()` is called.
 
 ## Wire commands
 
@@ -75,7 +74,56 @@ for that safety boundary.
 
 For the BEF conformance kit only, the mock recognizes exact `*IDN?` and `CONF`
 probes as side-effect-free operations. Pass `allow_conformance_probes=False` to
-disable them. The normal wire parser and real backend skeleton reject both.
+disable them. The normal wire parser and real backend reject both.
+
+## Transport configuration
+
+The entry-point configuration accepts the following keys. Unknown keys are
+rejected.
+
+| key | default | meaning |
+|---|---:|---|
+| `resources` | `[]` | configured RTU/TCP resource names; no bus scan occurs |
+| `read_retries` | `1` | retries after a read communication failure |
+| `baudrate` | `9600` | RTU baud rate |
+| `bytesize` | `8` | RTU data bits (5–8) |
+| `parity` | `N` | RTU parity (`N`, `E`, or `O`) |
+| `stopbits` | `1` | RTU stop bits (1, 1.5, or 2) |
+
+The serial settings apply to every configured RTU port in that backend
+instance. TCP resources take host and port from their resource names.
+
+```python
+registration = make_backend(
+    {
+        "resources": [
+            "MODBUS::COM3::1",
+            "MODBUS::192.168.0.10::502::2",
+        ],
+        "read_retries": 1,
+        "baudrate": 19200,
+        "bytesize": 8,
+        "parity": "E",
+        "stopbits": 1,
+    }
+)
+```
+
+Each `query()` and `write()` call enforces its `timeout_ms`. Communication
+failures close the affected connection, and the next attempt reconnects.
+Reads may retry according to `read_retries`. Writes are never automatically
+retried, even when the outcome is unknown after a timeout; retrying could apply
+the same physical action twice. A 32-bit write is always sent as one
+`write_registers` request containing both words.
+
+Transactions are serialized by physical bus: RTU uses `serial_port`, and TCP
+uses `host:tcp_port`. Unit ID is intentionally not part of the lock key because
+multiple units can share one serial line or gateway connection. Explicit
+Modbus exception responses are reported separately from timeout, disconnect,
+CRC, and framing communication failures and are not retried.
+
+`close()` is synchronous, idempotent, and best-effort. Calling it prevents new
+I/O through that backend instance.
 
 ## Entry point
 
@@ -86,9 +134,18 @@ Installing the package registers:
 modbus = "lab_modbus_mcp.discovery:make_backend"
 ```
 
-`make_backend(config)` accepts only an optional `resources: list[str]` value and
-returns `BackendRegistration(prefixes=("MODBUS::",))`. Unknown configuration
-keys are rejected.
+`make_backend(config)` returns
+`BackendRegistration(prefixes=("MODBUS::",))` and accepts only the transport
+configuration listed above.
+
+## RTU verification scope
+
+Automated tests verify RTU client construction, configured serial parameters,
+unit-ID forwarding, and serial-port lock sharing. They do not claim physical
+RTU communication coverage because no serial adapter or field device is
+available in CI. TCP coverage uses a real pymodbus asynchronous server over a
+loopback socket and exercises protocol framing, all register types, scaling,
+coils, and discrete/input reads.
 
 ## Development
 

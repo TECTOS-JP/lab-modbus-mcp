@@ -10,7 +10,6 @@ from lab_executor.testing.backend_conformance import assert_backend_contract
 from lab_modbus_mcp.backend import (
     ModbusBackend,
     ModbusBackendError,
-    ModbusTransportUnavailable,
 )
 from lab_modbus_mcp.mock_backend import (
     DEFAULT_MOCK_RESOURCE,
@@ -164,15 +163,18 @@ def test_mock_exposes_no_separate_raw_register_write_api():
 
 
 @pytest.mark.asyncio
-async def test_backend_skeleton_validates_then_reports_transport_unavailable():
-    backend = ModbusBackend(resources=[DEFAULT_MOCK_RESOURCE])
+async def test_real_backend_validates_before_constructing_transport():
+    def forbidden_factory(_resource):
+        raise AssertionError("invalid input must not construct a client")
+
+    backend = ModbusBackend(
+        resources=[DEFAULT_MOCK_RESOURCE], _client_factory=forbidden_factory
+    )
     assert await backend.list_resources() == [DEFAULT_MOCK_RESOURCE]
-    with pytest.raises(ModbusTransportUnavailable):
-        await backend.query(DEFAULT_MOCK_RESOURCE, "RH 0 u16")
-    with pytest.raises(ModbusTransportUnavailable):
-        await backend.write(DEFAULT_MOCK_RESOURCE, "WH 0 u16 1")
     with pytest.raises(WireCommandError):
         await backend.query(DEFAULT_MOCK_RESOURCE, "*IDN?")
+    with pytest.raises(ModbusBackendError, match="wrong operation"):
+        await backend.write(DEFAULT_MOCK_RESOURCE, "RH 0 u16")
 
 
 @pytest.mark.asyncio
