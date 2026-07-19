@@ -81,6 +81,7 @@ def test_pyproject_has_frozen_packaging_metadata():
     assert set(project["urls"]) >= {"Homepage", "Repository", "Changelog", "Issues"}
     entry_points = project["entry-points"]["lab_executor.backends"]
     assert entry_points["modbus"] == "lab_modbus_mcp.discovery:make_backend"
+    assert project["scripts"]["lab-modbus"] == "lab_modbus_mcp.cli:main"
     include = data["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     assert include and all(item.startswith("/") for item in include)
     assert "/conftest.py" in include
