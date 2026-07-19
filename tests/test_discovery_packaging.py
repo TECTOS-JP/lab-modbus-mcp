@@ -16,6 +16,19 @@ from lab_modbus_mcp.backend import ModbusBackend
 from lab_modbus_mcp.discovery import make_backend
 
 
+def _installed_modbus_entry_points():
+    matches = [
+        ep
+        for ep in metadata.entry_points(group="lab_executor.backends")
+        if ep.name == "modbus"
+    ]
+    if not matches:
+        pytest.skip(
+            "lab-modbus-mcp installation metadata is required for entry-point tests"
+        )
+    return matches
+
+
 def test_factory_returns_modbus_registration():
     registration = make_backend(
         {"resources": ["MODBUS::COM3::1", "MODBUS::host::502::2"]}
@@ -35,16 +48,13 @@ def test_factory_rejects_unknown_or_malformed_config():
 
 
 def test_installed_entry_point_discovers_factory():
-    matches = [
-        ep
-        for ep in metadata.entry_points(group="lab_executor.backends")
-        if ep.name == "modbus"
-    ]
+    matches = _installed_modbus_entry_points()
     assert len(matches) == 1
     assert matches[0].load() is make_backend
 
 
 def test_bef_discovery_constructs_installed_modbus_backend():
+    _installed_modbus_entry_points()
     registrations = discover_backends(["modbus"])
     assert len(registrations) == 1
     assert isinstance(registrations[0].backend, ModbusBackend)
@@ -64,3 +74,4 @@ def test_pyproject_has_frozen_packaging_metadata():
     assert entry_points["modbus"] == "lab_modbus_mcp.discovery:make_backend"
     include = data["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     assert include and all(item.startswith("/") for item in include)
+    assert "/conftest.py" in include

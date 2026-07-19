@@ -55,6 +55,7 @@ include = [
     "/CHANGELOG.md",
     "/LICENSE",
     "/pyproject.toml",
+    "/conftest.py",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -26,15 +26,17 @@ WH <addr> <type> [s<scale>] <value>
 WC <addr> <0|1>
 ```
 
-Register types are `u16`, `s16`, `u32`, `s32`, `float32be`, and `float32le`.
-Ambiguous `float32` is rejected. `u32` and `s32` use high-word-first Modbus
-order. For float32, `be` and `le` describe word order; bytes inside each
-16-bit register retain Modbus big-endian order.
+Register types are `u16`, `s16`, `u32be`, `u32le`, `s32be`, `s32le`,
+`float32be`, and `float32le`. Every 32-bit type must explicitly declare word
+order; ambiguous `u32`, `s32`, and `float32` are rejected. `be` is high-word
+first and `le` is low-word first. Bytes inside each 16-bit register retain
+Modbus big-endian order.
 
-On read, scale is `raw * scale`. On write it is
-`round(value / scale)` using Python's ties-to-even `round`; the default scale is
-1.0. Unknown tokens, extra arguments, missing values, non-finite numbers, and
-out-of-range addresses fail closed.
+On read, scale is `raw * scale` for every type. On write, integer register types
+use `round(value / scale)` with Python's ties-to-even `round`, while float32
+types use `value / scale` without rounding so fractional values are preserved.
+The default scale is 1.0. Unknown tokens, extra arguments, missing values,
+non-finite numbers, and out-of-range addresses fail closed.
 
 ## Resource names
 

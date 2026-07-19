@@ -15,14 +15,21 @@ REGISTER_TYPES = frozenset(
     {
         "u16",
         "s16",
-        "u32",
-        "s32",
+        "u32be",
+        "u32le",
+        "s32be",
+        "s32le",
         "float32be",
         "float32le",
     }
 )
-INTEGER_TYPES = frozenset({"u16", "s16", "u32", "s32"})
+INTEGER_TYPES = frozenset({"u16", "s16", "u32be", "u32le", "s32be", "s32le"})
 FLOAT_TYPES = frozenset({"float32be", "float32le"})
+_AMBIGUOUS_32BIT_TYPES = {
+    "u32": ("u32be", "u32le"),
+    "s32": ("s32be", "s32le"),
+    "float32": ("float32be", "float32le"),
+}
 _ADDRESS_RE = re.compile(r"[0-9]+", re.ASCII)
 _NUMBER_RE = re.compile(
     r"[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))"
@@ -80,11 +87,13 @@ def _scale(token: str) -> float:
 
 
 def _register_type(token: str) -> str:
-    if token not in REGISTER_TYPES:
+    if token in _AMBIGUOUS_32BIT_TYPES:
+        big, little = _AMBIGUOUS_32BIT_TYPES[token]
         raise WireCommandError(
-            f"unsupported register type {token!r}; 32-bit float word order "
-            "must be explicit"
+            f"word order must be explicit for {token!r}; use {big!r} or {little!r}"
         )
+    if token not in REGISTER_TYPES:
+        raise WireCommandError(f"unsupported register type {token!r}")
     return token
 
 
@@ -176,8 +185,10 @@ def encode_registers(value: int | float, data_type: str) -> tuple[int, ...]:
         ranges = {
             "u16": (0, 0xFFFF),
             "s16": (-(1 << 15), (1 << 15) - 1),
-            "u32": (0, 0xFFFFFFFF),
-            "s32": (-(1 << 31), (1 << 31) - 1),
+            "u32be": (0, 0xFFFFFFFF),
+            "u32le": (0, 0xFFFFFFFF),
+            "s32be": (-(1 << 31), (1 << 31) - 1),
+            "s32le": (-(1 << 31), (1 << 31) - 1),
         }
         minimum, maximum = ranges[data_type]
         if not minimum <= integer <= maximum:
@@ -186,8 +197,8 @@ def encode_registers(value: int | float, data_type: str) -> tuple[int, ...]:
         unsigned = integer & ((1 << bits) - 1)
         if bits == 16:
             return (unsigned,)
-        # u32/s32 use the Modbus conventional high-word-first order.
-        return ((unsigned >> 16) & 0xFFFF, unsigned & 0xFFFF)
+        high_low = ((unsigned >> 16) & 0xFFFF, unsigned & 0xFFFF)
+        return tuple(reversed(high_low)) if data_type.endswith("le") else high_low
 
     number = float(value)
     if not math.isfinite(number):
@@ -216,11 +227,11 @@ def decode_registers(words: tuple[int, ...] | list[int], data_type: str) -> int 
     if data_type == "s16":
         return words[0] - 0x10000 if words[0] & 0x8000 else words[0]
 
-    high, low = words if data_type != "float32le" else (words[1], words[0])
+    high, low = (words[1], words[0]) if data_type.endswith("le") else words
     unsigned = (high << 16) | low
-    if data_type == "u32":
+    if data_type in {"u32be", "u32le"}:
         return unsigned
-    if data_type == "s32":
+    if data_type in {"s32be", "s32le"}:
         return unsigned - 0x100000000 if unsigned & 0x80000000 else unsigned
     number = struct.unpack(">f", struct.pack(">HH", high, low))[0]
     if not math.isfinite(number):
@@ -231,6 +242,13 @@ def decode_registers(words: tuple[int, ...] | list[int], data_type: str) -> int 
 def encode_scaled_value(
     value: int | float, data_type: str, scale: float
 ) -> tuple[int, ...]:
+    """Scale and encode a logical value according to its register type.
+
+    Integer registers use ``round(value / scale)`` (Python ties-to-even)
+    because their raw representation must be integral. Float32 registers use
+    ``value / scale`` unchanged so representable fractional values are kept.
+    """
+    _register_type(data_type)
     if not math.isfinite(scale) or scale == 0:
         raise WireCommandError("scale must be finite and non-zero")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -241,7 +259,7 @@ def encode_scaled_value(
     scaled = number / scale
     if not math.isfinite(scaled):
         raise WireCommandError("scaled raw value must be finite")
-    raw = round(scaled)
+    raw = round(scaled) if data_type in INTEGER_TYPES else scaled
     return encode_registers(raw, data_type)
 
 
@@ -250,6 +268,7 @@ def decode_scaled_value(
     data_type: str,
     scale: float,
 ) -> int | float:
+    """Decode a raw integer or float value, then multiply by ``scale``."""
     if not math.isfinite(scale) or scale == 0:
         raise WireCommandError("scale must be finite and non-zero")
     value = decode_registers(words, data_type) * scale

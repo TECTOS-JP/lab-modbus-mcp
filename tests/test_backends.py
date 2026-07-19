@@ -47,10 +47,10 @@ async def test_signed_and_32bit_write_read_round_trip():
     backend = MockModbusBackend()
     for address, data_type, value in [
         (0, "s16", -12),
-        (10, "u32", 0x11223344),
-        (20, "s32", -123456),
-        (30, "float32be", 12),
-        (40, "float32le", 12),
+        (10, "u32be", 0x11223344),
+        (20, "s32le", -123456),
+        (30, "float32be", 25.5),
+        (40, "float32le", 25.5),
     ]:
         await backend.write(
             DEFAULT_MOCK_RESOURCE,
@@ -61,6 +61,15 @@ async def test_signed_and_32bit_write_read_round_trip():
             f"RH {address} {data_type}",
         )
         assert float(response) == pytest.approx(value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data_type", ["float32be", "float32le"])
+async def test_float_scaled_write_read_preserves_fraction(data_type):
+    backend = MockModbusBackend()
+    await backend.write(DEFAULT_MOCK_RESOURCE, f"WH 60 {data_type} s0.1 2.55")
+    response = await backend.query(DEFAULT_MOCK_RESOURCE, f"RH 60 {data_type} s0.1")
+    assert float(response) == pytest.approx(2.55)
 
 
 @pytest.mark.asyncio

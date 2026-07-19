@@ -23,7 +23,7 @@ from lab_modbus_mcp.wire import (
         ("RC 3", "RC", 3, None, 1.0, None),
         ("RD 4", "RD", 4, None, 1.0, None),
         ("WH 4 u16 25", "WH", 4, "u16", 1.0, 25.0),
-        ("WH 5 s32 s0.01 -3.5", "WH", 5, "s32", 0.01, -3.5),
+        ("WH 5 s32le s0.01 -3.5", "WH", 5, "s32le", 0.01, -3.5),
         ("WC 6 0", "WC", 6, None, 1.0, False),
         ("WC 6 1", "WC", 6, None, 1.0, True),
     ],
@@ -39,7 +39,16 @@ def test_parse_all_operations(text, opcode, address, data_type, scale, value):
 
 @pytest.mark.parametrize(
     "data_type",
-    ["u16", "s16", "u32", "s32", "float32be", "float32le"],
+    [
+        "u16",
+        "s16",
+        "u32be",
+        "u32le",
+        "s32be",
+        "s32le",
+        "float32be",
+        "float32le",
+    ],
 )
 def test_all_declared_register_types_parse(data_type):
     assert parse_wire_command(f"RH 0 {data_type}").data_type == data_type
@@ -58,7 +67,9 @@ def test_all_declared_register_types_parse(data_type):
         "RH -1 u16",
         "RH 65536 u16",
         "RH 0 float32",
-        "RH 65535 u32",
+        "RH 0 u32",
+        "RH 0 s32",
+        "RH 65535 u32be",
         "WH 65535 float32be 1",
         "RH 0 U16",
         "RH 0 u16 0.1",
@@ -91,10 +102,14 @@ def test_invalid_commands_fail_closed(text):
         (65535, "u16"),
         (-32768, "s16"),
         (32767, "s16"),
-        (0, "u32"),
-        (0xFFFFFFFF, "u32"),
-        (-(1 << 31), "s32"),
-        ((1 << 31) - 1, "s32"),
+        (0, "u32be"),
+        (0xFFFFFFFF, "u32be"),
+        (0, "u32le"),
+        (0xFFFFFFFF, "u32le"),
+        (-(1 << 31), "s32be"),
+        ((1 << 31) - 1, "s32be"),
+        (-(1 << 31), "s32le"),
+        ((1 << 31) - 1, "s32le"),
         (1.25, "float32be"),
         (1.25, "float32le"),
     ],
@@ -104,8 +119,17 @@ def test_register_codec_round_trip(value, data_type):
     assert decoded == pytest.approx(value)
 
 
-def test_32bit_integer_order_is_high_word_first():
-    assert encode_registers(0x11223344, "u32") == (0x1122, 0x3344)
+@pytest.mark.parametrize(
+    ("signed", "big", "little"), [(False, "u32be", "u32le"), (True, "s32be", "s32le")]
+)
+def test_32bit_integer_word_orders_are_explicit_and_distinct(signed, big, little):
+    value = -0x112233 if signed else 0x11223344
+    big_words = encode_registers(value, big)
+    little_words = encode_registers(value, little)
+    assert little_words == tuple(reversed(big_words))
+    assert little_words != big_words
+    assert decode_registers(big_words, big) == value
+    assert decode_registers(little_words, little) == value
 
 
 def test_float_word_orders_are_distinct_and_decode_equivalently():
@@ -124,10 +148,10 @@ def test_float_word_orders_are_distinct_and_decode_equivalently():
         (65536, "u16"),
         (-32769, "s16"),
         (32768, "s16"),
-        (-1, "u32"),
-        (1 << 32, "u32"),
-        (-(1 << 31) - 1, "s32"),
-        (1 << 31, "s32"),
+        (-1, "u32be"),
+        (1 << 32, "u32le"),
+        (-(1 << 31) - 1, "s32be"),
+        (1 << 31, "s32le"),
         (1.5, "u16"),
     ],
 )
@@ -143,9 +167,17 @@ def test_scale_round_trip_and_rounding_rule():
     assert encode_scaled_value(0.25, "u16", 0.1) == (2,)
 
 
+@pytest.mark.parametrize("data_type", ["float32be", "float32le"])
+def test_float_scale_preserves_fractional_values_without_rounding(data_type):
+    words = encode_scaled_value(25.5, data_type, 1.0)
+    assert decode_scaled_value(words, data_type, 1.0) == pytest.approx(25.5)
+    scaled_words = encode_scaled_value(2.55, data_type, 0.1)
+    assert decode_scaled_value(scaled_words, data_type, 0.1) == pytest.approx(2.55)
+
+
 def test_codec_rejects_wrong_word_count_and_invalid_words():
     with pytest.raises(WireCommandError):
-        decode_registers([1], "u32")
+        decode_registers([1], "u32be")
     with pytest.raises(WireCommandError):
         decode_registers([-1], "u16")
     with pytest.raises(WireCommandError):
@@ -166,5 +198,25 @@ def test_scale_overflow_is_rejected():
 
 
 def test_register_count_rejects_unknown_type():
-    with pytest.raises(WireCommandError):
-        register_count("float32")
+    for ambiguous in ("u32", "s32", "float32"):
+        with pytest.raises(WireCommandError, match="word order must be explicit"):
+            register_count(ambiguous)
+
+
+@pytest.mark.parametrize(
+    ("ambiguous", "big", "little"),
+    [
+        ("u32", "u32be", "u32le"),
+        ("s32", "s32be", "s32le"),
+        ("float32", "float32be", "float32le"),
+    ],
+)
+def test_ambiguous_32bit_type_error_suggests_explicit_alternatives(
+    ambiguous, big, little
+):
+    with pytest.raises(WireCommandError) as exc_info:
+        parse_wire_command(f"RH 0 {ambiguous}")
+    message = str(exc_info.value)
+    assert "word order must be explicit" in message
+    assert big in message
+    assert little in message
