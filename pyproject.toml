@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lab-modbus-mcp"
+version = "0.1.0"
+description = "Modbus RTU/TCP instrument backend for lab-executor-mcp"
+readme = "README.md"
+license = { text = "MIT" }
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+keywords = [
+    "modbus", "laboratory-automation", "instrument-control",
+    "lab-executor-mcp", "experiment-automation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+]
+dependencies = [
+    "lab-executor-mcp>=2.35.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "build>=1.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.urls]
+Homepage = "https://github.com/TECTOS-JP/lab-modbus-mcp"
+Repository = "https://github.com/TECTOS-JP/lab-modbus-mcp"
+Changelog = "https://github.com/TECTOS-JP/lab-modbus-mcp/blob/main/CHANGELOG.md"
+Issues = "https://github.com/TECTOS-JP/lab-modbus-mcp/issues"
+
+[project.entry-points."lab_executor.backends"]
+modbus = "lab_modbus_mcp.discovery:make_backend"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/lab_modbus_mcp",
+    "/tests",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/pyproject.toml",
+    "/conftest.py",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lab_modbus_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
