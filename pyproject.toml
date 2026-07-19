@@ -28,12 +28,15 @@ classifiers = [
 ]
 dependencies = [
     "lab-executor-mcp>=2.35.0,<3.0.0",
+    "pymodbus>=3.6,<4.0",
+    "pyserial>=3.5",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "ruff>=0.8",
     "build>=1.0",
     "tomli>=2.0; python_version < '3.11'",
 ]

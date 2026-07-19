@@ -31,7 +31,14 @@ def _installed_modbus_entry_points():
 
 def test_factory_returns_modbus_registration():
     registration = make_backend(
-        {"resources": ["MODBUS::COM3::1", "MODBUS::host::502::2"]}
+        {
+            "resources": ["MODBUS::COM3::1", "MODBUS::host::502::2"],
+            "read_retries": 2,
+            "baudrate": 19200,
+            "bytesize": 7,
+            "parity": "E",
+            "stopbits": 2,
+        }
     )
     assert isinstance(registration, BackendRegistration)
     assert isinstance(registration.backend, ModbusBackend)
@@ -68,6 +75,8 @@ def test_pyproject_has_frozen_packaging_metadata():
     assert project["name"] == "lab-modbus-mcp"
     assert project["version"] == "0.1.0"
     assert "lab-executor-mcp>=2.35.0,<3.0.0" in project["dependencies"]
+    assert "pymodbus>=3.6,<4.0" in project["dependencies"]
+    assert "pyserial>=3.5" in project["dependencies"]
     assert project["license-files"] == ["LICENSE"]
     assert set(project["urls"]) >= {"Homepage", "Repository", "Changelog", "Issues"}
     entry_points = project["entry-points"]["lab_executor.backends"]
