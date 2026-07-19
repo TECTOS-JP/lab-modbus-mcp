@@ -1,0 +1,119 @@
+# Reference definition derived from OMRON E5@C Communications Manual H175-E1-18.
+# This profile is intentionally limited to documented Modbus two-byte-mode
+# addresses and a controller configured for one decimal place (0.1 degree).
+metadata:
+  manufacturer: "OMRON"
+  model: "E5CC (Modbus two-byte mode, 0.1-degree profile)"
+  category: "temperature_controller"
+  support_level: "experimental"
+  definition_version: "0.1.0"
+  manual_ref: "E5@C Digital Temperature Controllers Communications Manual H175-E1-18, sections 4-4-3 and 5-1"
+  description: >-
+    Reference definition derived from the public OMRON H175-E1-18 manual.
+    Hardware has not been verified; confirm register addresses, two-byte mode,
+    decimal-point setting, sensor range, and safe limits before use.
+
+connection:
+  default_timeout_ms: 3000
+  read_termination: ""
+  write_termination: ""
+
+commands:
+  read_process_value:
+    scpi: "RH 8192 s16 s0.1"
+    type: "query"
+    description: "PV at two-byte-mode address 0x2000; requires decimal point = 1."
+    polling_safe: true
+    parameters: []
+    returns:
+      type: "float"
+      unit: "degC"
+
+  read_internal_set_point:
+    scpi: "RH 8194 s16 s0.1"
+    type: "query"
+    description: "Internal SP at two-byte-mode address 0x2002."
+    polling_safe: true
+    parameters: []
+    returns:
+      type: "float"
+      unit: "degC"
+
+  set_set_point:
+    scpi: "WH 8451 s16 s0.1 {temperature_c}"
+    type: "write"
+    description: >-
+      Set Point at two-byte-mode address 0x2103. The 0..400 degC range is a
+      conservative template application limit, not the model's universal sensor range.
+    parameters:
+      - name: "temperature_c"
+        type: "float"
+        range: [0, 400]
+        unit: "degC"
+
+  start_control:
+    scpi: "WH 0 u16 256"
+    type: "write"
+    description: "RUN operation command: address 0x0000, data 0x0100."
+    parameters: []
+
+  stop_control:
+    scpi: "WH 0 u16 257"
+    type: "write"
+    description: "STOP operation command: address 0x0000, data 0x0101."
+    parameters: []
+
+state_query:
+  process_value:
+    command: "read_process_value"
+    unit: "degC"
+  set_point:
+    command: "read_internal_set_point"
+    unit: "degC"
+
+safe_shutdown:
+  - command: "stop_control"
+
+recipes:
+  temperature_ramp_and_hold_reference:
+    description: >-
+      Reference temperature ramp, stability wait, and hold sequence. Hardware
+      has not been verified; tune all limits and timing for the real process.
+    on_error: "safe_shutdown"
+    parameters:
+      - { name: "start_c", type: "float", default: 20, range: [0, 400] }
+      - { name: "target_c", type: "float", default: 60, range: [0, 400] }
+      - { name: "step_c", type: "float", default: 10, range: [0.1, 100] }
+      - { name: "ramp_points", type: "integer", default: 4, range: [1, 100] }
+      - { name: "step_interval_s", type: "float", default: 60, range: [0, 86400] }
+      - { name: "stability_tolerance_c", type: "float", default: 0.5, range: [0.01, 100] }
+      - { name: "stability_window_s", type: "float", default: 60, range: [0.03, 86400] }
+      - { name: "stability_interval_s", type: "float", default: 5, range: [0.01, 86400] }
+      - { name: "stability_timeout_s", type: "float", default: 1800, range: [0.03, 86400] }
+      - { name: "hold_s", type: "float", default: 600, range: [0, 86400] }
+    requires:
+      commands: ["start_control", "set_set_point", "read_process_value"]
+      ranges:
+        set_set_point.temperature_c: { min: 0, max: 400 }
+    steps:
+      - command: "start_control"
+      - repeat:
+          count: "$ramp_points"
+          steps:
+            - compute:
+                set: "ramp_sv"
+                expr: "min(params.target_c, params.start_c + (env.loop_index + 1) * params.step_c)"
+            - command: "set_set_point"
+              args: { temperature_c: "${vars.ramp_sv}" }
+            - wait: { seconds: "$step_interval_s" }
+      - command: "set_set_point"
+        args: { temperature_c: "$target_c" }
+      - wait_for_stable:
+          instrument: "MODBUS::COM3::1"
+          command: "read_process_value"
+          tolerance: "$stability_tolerance_c"
+          window_s: "$stability_window_s"
+          interval_s: "$stability_interval_s"
+          timeout_s: "$stability_timeout_s"
+          min_samples: 3
+      - wait: { seconds: "$hold_s" }

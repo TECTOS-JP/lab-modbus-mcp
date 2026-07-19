@@ -21,6 +21,13 @@
   retries, explicit exception-response errors, and atomic 32-bit writes.
 - Real-loopback pymodbus TCP integration tests plus isolated RTU construction,
   parameter-forwarding, and serial-port-lock tests.
+- MB-3 experimental OMRON E5CC two-byte/0.1-degree reference definition with
+  documented-only PV, internal-SP, SP-write, and RUN/STOP addresses.
+- Reference temperature ramp, stability-wait, and hold recipe with mock Job
+  completion coverage and safe-shutdown policy.
+- Thin `lab-modbus serve` CLI using the public BEF server composition contract.
+- Python 3.11 CI, BEF integration coverage, and OIDC Trusted Publishing
+  workflows with distribution metadata and sdist-content guards.
 
 ### Fixed
 

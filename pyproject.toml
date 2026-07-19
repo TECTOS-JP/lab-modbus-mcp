@@ -38,6 +38,7 @@ dev = [
     "pytest-asyncio>=0.21",
     "ruff>=0.8",
     "build>=1.0",
+    "twine>=5.0",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -49,6 +50,9 @@ Issues = "https://github.com/TECTOS-JP/lab-modbus-mcp/issues"
 
 [project.entry-points."lab_executor.backends"]
 modbus = "lab_modbus_mcp.discovery:make_backend"
+
+[project.scripts]
+lab-modbus = "lab_modbus_mcp.cli:main"
 
 [tool.hatch.build.targets.sdist]
 include = [

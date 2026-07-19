@@ -5,10 +5,58 @@ Modbus RTU / TCP instrument backend package for
 
 ## Status
 
-MB-2 provides asynchronous Modbus TCP and RTU transport through pymodbus 3.x,
-in addition to the strict MB-1 grammar, codecs, resource parser, and in-memory
-mock. Connections are opened lazily and reused until communication fails or
+MB-3 adds a thin MCP CLI, CI and Trusted Publishing workflows, and an
+experimental OMRON E5CC reference definition and ramp/hold recipe. MB-2
+provides asynchronous Modbus TCP and RTU transport through pymodbus 3.x.
+Connections are opened lazily and reused until communication fails or
 `close()` is called.
+
+## Three usage modes
+
+### A: backend by itself
+
+`ModbusBackend` implements the lab-executor `InstrumentBackend` protocol and
+can be injected into another Python application. This is the low-level mode;
+the caller must apply its own command allowlist and value-range policy.
+
+```python
+from lab_modbus_mcp import ModbusBackend
+
+backend = ModbusBackend(resources=["MODBUS::COM3::1"])
+value = await backend.query("MODBUS::COM3::1", "RH 8192 s16 s0.1")
+backend.close()
+```
+
+### B: standalone MCP server
+
+The CLI uses only the public BEF server contract (`compose_server` and
+`run_mcp_with_control`). `--control-port 0` lets the OS choose a localhost
+control port. `--dry-run` performs composition without connecting to a bus and
+prints the available MCP tools.
+
+```console
+lab-modbus serve --resource MODBUS::COM3::1 --baudrate 9600 --parity E
+lab-modbus serve --resource MODBUS::192.168.0.10::502::1 --dry-run
+```
+
+### C: part of an integrated lab
+
+Installation registers the `modbus` backend entry point. lab-executor can
+discover it and combine it with VISA or another backend through
+`CompositeBackend`; the case-sensitive `MODBUS::` prefix selects this backend.
+
+```yaml
+# instruments/_system.yaml
+backends:
+  visa: {}
+  modbus:
+    resources:
+      - "MODBUS::COM3::1"
+    baudrate: 9600
+    bytesize: 8
+    parity: "E"
+    stopbits: 1
+```
 
 ## Wire commands
 
@@ -147,11 +195,60 @@ available in CI. TCP coverage uses a real pymodbus asynchronous server over a
 loopback socket and exercises protocol framing, all register types, scaling,
 coils, and discrete/input reads.
 
+## Bundled OMRON E5CC reference definition
+
+The package contains
+`builtin_instruments/omron_e5cc_2byte_01c.yaml`. It is based only on OMRON's
+public **E5[]C Digital Temperature Controllers Communications Manual,
+H175-E1-18**, sections 4-4-3 and 5-1:
+
+- PV: two-byte-mode address `0x2000`
+- internal SP: two-byte-mode address `0x2002`
+- writable SP: two-byte-mode address `0x2103`
+- RUN/STOP: operation-command address `0x0000`, values `0x0100` / `0x0101`
+
+Source: <https://www.omron-ap.com/data_pdf/mnu/h175-e1-18_e5_c.pdf?id=3102>
+
+No undocumented register address was guessed. The profile deliberately assumes
+two-byte Modbus mode and a decimal-point setting of one (`0.1 degC`). Its
+`0..400 degC` SP range is a conservative template application limit, not a
+universal E5CC sensor range. Confirm the exact model supports RS-485, enable
+communications writing, and verify the mode, decimal point, sensor range,
+limits, wiring, and fail-safe hardware before use.
+
+The definition declares `metadata.support_level: experimental` because it was
+derived from a manual and has not been tested on hardware. Its description also
+states that the register addresses require confirmation. Do not change the
+support level to `verified` until identify, commands, state queries,
+verification, and safe shutdown have all been checked on the target hardware.
+
+The bundled `temperature_ramp_and_hold_reference` recipe performs incremental
+SP writes, waits for stability with `wait_for_stable`, then holds. It uses
+`MODBUS::COM3::1` as an explicit template resource and must be adjusted for the
+real resource and thermal process. It is a reference, not a validated thermal
+profile.
+
+## Safety
+
+- Through lab-executor, writable registers must be exposed by named instrument
+  commands. The bundled E5CC definition exposes only SP and documented
+  RUN/STOP operations; its variable SP argument has a mandatory range.
+- The low-level backend does not turn arbitrary wire commands into a safe
+  device policy. Mode A callers must enforce an equivalent allowlist and ranges.
+- Writes are never automatically retried, preventing an unknown outcome from
+  being applied twice.
+- Every 32-bit value is transferred in one multi-register transaction.
+- Bus access is serialized per serial port or TCP host/port.
+- The bundled definition is hardware-unverified and marked `experimental`.
+
 ## Development
 
 ```console
 python -m pytest -q
+ruff check src tests
+ruff format --check src tests
 python -m build
+python -m twine check dist/*
 ```
 
 ## License
