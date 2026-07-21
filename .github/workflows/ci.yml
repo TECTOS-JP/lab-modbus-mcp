@@ -24,6 +24,27 @@ jobs:
       - name: Full test suite
         run: pytest -q
 
+  # The `test` job above pins nothing and therefore exercises the released
+  # runtime from PyPI. This job runs the same contract-facing tests against
+  # lab-executor's development main, so a breaking runtime change is visible
+  # here before it reaches a release. It is allowed to fail: a red main is
+  # information about the runtime, not a defect in this repository.
+  main-compatibility-smoke:
+    name: lab-executor main compatibility smoke
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e ".[dev]"
+      - name: Replace release runtime with development main
+        run: python -m pip install --upgrade --force-reinstall "lab-executor-mcp @ git+https://github.com/TECTOS-JP/lab-executor-mcp@main"
+      # Only the tests that touch the runtime API; the rest cannot be affected
+      # by a runtime change and would only add noise here.
+      - run: pytest -q tests/test_backends.py tests/test_discovery_packaging.py tests/test_mb3_assets.py
+
   build:
     runs-on: ubuntu-latest
     steps:
