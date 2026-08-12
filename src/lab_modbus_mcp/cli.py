@@ -5,12 +5,27 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from typing import Sequence
+from collections.abc import Sequence
 
 from lab_executor.control_plane import run_mcp_with_control
 from lab_executor.server import compose_server
 
 from lab_modbus_mcp.backend import ModbusBackend
+from lab_modbus_mcp.sessions import available_definitions, register_sessions
+
+
+def _parse_instruments(entries: Sequence[str]) -> dict[str, str]:
+    """Parse ``RESOURCE=DEFINITION`` pairs into a mapping."""
+    mapping: dict[str, str] = {}
+    for entry in entries:
+        resource, sep, definition = entry.partition("=")
+        if not sep or not resource or not definition:
+            raise ValueError(
+                f"--instrument must be RESOURCE=DEFINITION, got {entry!r}; "
+                f"available definitions: {available_definitions()!r}"
+            )
+        mapping[resource] = definition
+    return mapping
 
 
 def _control_port(value: str) -> int:
@@ -38,6 +53,18 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help="configured MODBUS:: resource (repeat for multiple units/endpoints)",
     )
+    serve.add_argument(
+        "--instrument",
+        action="append",
+        default=[],
+        metavar="RESOURCE=DEFINITION",
+        help=(
+            "bind a resource to a bundled instrument definition, e.g. "
+            "MODBUS::COM3::1=omron_e5cc_2byte_01c. A Modbus resource name "
+            "says nothing about what is on the other end, so this is never "
+            "inferred (repeat for multiple)"
+        ),
+    )
     serve.add_argument("--dry-run", action="store_true", help="compose and list tools")
     serve.add_argument("--read-retries", type=int, default=1)
     serve.add_argument("--baudrate", type=int, default=9600)
@@ -54,7 +81,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 async def _dry_run(mcp: object, backend: ModbusBackend) -> None:
-    list_tools = getattr(mcp, "list_tools")
+    list_tools = mcp.list_tools
     tools = await list_tools()
     payload = {
         "backend_id": backend.backend_id,
@@ -81,6 +108,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(str(exc))
 
     mcp, job_mgr = compose_server(backend, name="lab-modbus")
+    # Without this the bundled definitions never reach the runtime and every
+    # description tool reports a configured device as unidentified.
+    try:
+        register_sessions(job_mgr, _parse_instruments(args.instrument))
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         if args.dry_run:
             asyncio.run(_dry_run(mcp, backend))

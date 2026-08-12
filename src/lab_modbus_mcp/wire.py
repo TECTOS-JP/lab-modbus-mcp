@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import re
 import struct
+from dataclasses import dataclass
 from typing import Literal
-
 
 READ_OPS = frozenset({"RH", "RI", "RC", "RD"})
 WRITE_OPS = frozenset({"WH", "WC"})
@@ -173,7 +172,7 @@ def register_count(data_type: str) -> int:
     return 1 if data_type in {"u16", "s16"} else 2
 
 
-def encode_registers(value: int | float, data_type: str) -> tuple[int, ...]:
+def encode_registers(value: float, data_type: str) -> tuple[int, ...]:
     """Encode one raw value into unsigned 16-bit Modbus words."""
     _register_type(data_type)
     if data_type in INTEGER_TYPES:
@@ -239,9 +238,7 @@ def decode_registers(words: tuple[int, ...] | list[int], data_type: str) -> int 
     return number
 
 
-def encode_scaled_value(
-    value: int | float, data_type: str, scale: float
-) -> tuple[int, ...]:
+def encode_scaled_value(value: float, data_type: str, scale: float) -> tuple[int, ...]:
     """Scale and encode a logical value according to its register type.
 
     Integer registers use ``round(value / scale)`` (Python ties-to-even)

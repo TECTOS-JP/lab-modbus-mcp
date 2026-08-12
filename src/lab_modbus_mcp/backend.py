@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterable
 import inspect
+from collections.abc import Callable, Iterable
 from typing import Any, TypeAlias
 
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
@@ -80,7 +80,7 @@ def _serial_settings(
     baudrate: int,
     bytesize: int,
     parity: str,
-    stopbits: int | float,
+    stopbits: float,
 ) -> tuple[int, int, str, int | float]:
     if isinstance(baudrate, bool) or not isinstance(baudrate, int) or baudrate <= 0:
         raise ValueError("baudrate must be a positive integer")
@@ -111,7 +111,7 @@ class ModbusBackend:
         baudrate: int = 9600,
         bytesize: int = 8,
         parity: str = "N",
-        stopbits: int | float = 1,
+        stopbits: float = 1,
         _client_factory: ClientFactory | None = None,
     ) -> None:
         if (
@@ -207,8 +207,10 @@ class ModbusBackend:
                     asyncio.run(result)
                 else:
                     loop.create_task(result)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - see below
             # close() is a synchronous, idempotent, best-effort cleanup API.
+            # A transport that is already gone must not turn teardown into an
+            # error, so every failure here is deliberately swallowed.
             pass
 
     async def _drop_client(self, key: BusKey, client: Any) -> None:

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ipaddress
 import re
+from dataclasses import dataclass
 from typing import Literal
-
 
 _COM_PORT_RE = re.compile(r"COM[1-9][0-9]*", re.IGNORECASE | re.ASCII)
 _POSIX_PORT_RE = re.compile(r"/dev/[A-Za-z0-9._/-]+", re.ASCII)

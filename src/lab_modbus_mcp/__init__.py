@@ -12,11 +12,11 @@ from lab_modbus_mcp.mock_backend import MockModbusBackend
 __version__ = "0.1.0"
 
 __all__ = [
+    "MockModbusBackend",
     "ModbusBackend",
     "ModbusBackendError",
     "ModbusCommunicationError",
     "ModbusDeviceError",
     "ModbusTimeoutError",
-    "MockModbusBackend",
     "__version__",
 ]

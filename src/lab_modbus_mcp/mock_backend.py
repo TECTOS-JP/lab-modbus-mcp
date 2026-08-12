@@ -14,7 +14,6 @@ from lab_modbus_mcp.wire import (
     register_count,
 )
 
-
 DEFAULT_MOCK_RESOURCE = "MODBUS::COM3::1"
 CONFORMANCE_QUERY = "*IDN?"
 CONFORMANCE_WRITE = "CONF"
@@ -53,7 +52,7 @@ def _copy_bits(values: Mapping[int, bool] | None, label: str) -> dict[int, bool]
         ):
             raise ValueError(f"{label} addresses must be integers from 0 to 65535")
         if not isinstance(value, bool):
-            raise ValueError(f"{label} values must be bool")
+            raise ValueError(f"{label} values must be bool")  # noqa: TRY004 - ValueError is this package's convention for rejected input
         copied[address] = value
     return copied
 
@@ -113,7 +112,7 @@ class MockModbusBackend:
         self,
         resource: str,
         command: WireCommand,
-        value: int | float | bool,
+        value: float | bool,
     ) -> None:
         if not command.is_read:
             raise ValueError("initial_values keys must be read commands")
@@ -128,7 +127,7 @@ class MockModbusBackend:
             target[command.address] = value
             return
         if isinstance(value, bool):
-            raise ValueError("register initial values must be numeric, not bool")
+            raise ValueError("register initial values must be numeric, not bool")  # noqa: TRY004 - ValueError is this package's convention for rejected input
         assert command.data_type is not None
         words = encode_scaled_value(value, command.data_type, command.scale)
         target = (

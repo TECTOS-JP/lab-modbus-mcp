@@ -17,7 +17,6 @@ from lab_modbus_mcp.backend import (
 )
 from lab_modbus_mcp.resource import parse_resource_name
 
-
 TCP_1 = "MODBUS::127.0.0.1::1502::1"
 TCP_2 = "MODBUS::127.0.0.1::1502::2"
 RTU_1 = "MODBUS::COM3::1"

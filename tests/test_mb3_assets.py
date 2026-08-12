@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import json
 from importlib.resources import files
 from pathlib import Path
@@ -14,9 +14,9 @@ from lab_executor.job.manager import JobManager
 from lab_executor.job.state_machine import JobStatus
 from lab_executor.job.store import JobStore
 from lab_executor.models.instrument_def import InstrumentDefinition
+
 from lab_modbus_mcp.cli import main
 from lab_modbus_mcp.mock_backend import MockModbusBackend
-
 
 ROOT = Path(__file__).parents[1]
 DEFINITION_PATH = (

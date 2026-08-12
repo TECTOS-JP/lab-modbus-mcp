@@ -3,7 +3,6 @@ from __future__ import annotations
 import inspect
 
 import pytest
-
 from lab_executor.backends import InstrumentBackend
 from lab_executor.testing.backend_conformance import assert_backend_contract
 

@@ -9,7 +9,6 @@ except ImportError:  # Python 3.10
     import tomli as tomllib
 
 import pytest
-
 from lab_executor.backends import BackendRegistration, discover_backends
 
 from lab_modbus_mcp.backend import ModbusBackend

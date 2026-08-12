@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### 同梱の機器定義を実行時に結び付ける (明示指定のみ)
+
+`builtin_instruments/*.yaml` は同梱されていたが、実行時に使う経路が無かった。
+`compose_server(backend)` を呼ぶだけで session を渡していなかったため、設定済みの
+機器が `describe_instrument` / `get_instrument_info` / `get_state` のいずれからも
+「未識別」と報告されていた (実プロセスで確認)。
+
+他の backend と違い、**この結び付けは推測できない**。BLE は resource 名に profile
+を含み、NI-DAQ は設定の model を初回ハードウェア接触時に照合する。Modbus の
+resource 名はポートと unit id だけで、その先に何があるかを示さず、protocol 側も
+誤りを教えてくれない。誤った定義を結び付ければ、その機器では別の意味を持つ
+レジスタアドレスへ書き込むことになる。したがって**明示指定がなければ結び付けない**。
+
+- `sessions.py` を追加。`{resource: 定義名}` の明示マッピングだけを解決する。
+- `serve --instrument RESOURCE=DEFINITION` を追加 (繰り返し可)。
+- 存在しない定義名は skip せず error にする。skip すると利用者が結び付いたと
+  誤解するため。
+
+実機確認: `--instrument "MODBUS::COM9::1=omron_e5cc_2byte_01c"` を指定すると
+OMRON E5CC として認識され、`list_commands` が 5 件を種別付きで返す。
+
+### CI の ruff 失敗を修正
+
+CI は `ruff>=0.8` を pin せず 0.16.0 を導入するため、新しい規則で既存コードが
+22 件引っかかり main の CI が失敗していた。18 件は自動修正。残る 4 件は
+意図的な実装なので理由を添えて noqa とした (close() の best-effort な握り潰しと、
+検証エラーに ValueError を使うパッケージの規約)。
+
+## Unreleased
+
 ### Added
 
 - MB-1 package skeleton for `lab-modbus-mcp` 0.1.0.
