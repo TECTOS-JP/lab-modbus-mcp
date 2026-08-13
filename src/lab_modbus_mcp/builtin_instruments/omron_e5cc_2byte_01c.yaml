@@ -50,6 +50,12 @@ commands:
         type: "float"
         range: [0, 400]
         unit: "degC"
+        description: >-
+          Target temperature the controller regulates to. This profile assumes
+          a controller configured for one decimal place, so the value is sent
+          in units of 0.1 degC. The usable span is whatever the wired sensor
+          and the controller's own set point limiter allow, which can be
+          narrower than the range stated here.
 
   start_control:
     scpi: "WH 0 u16 256"
