@@ -31,6 +31,15 @@ class ModbusSession:
     definition: InstrumentDefinition
     command_history: list[Any] = field(default_factory=list)
 
+    def record_command(self, command_name: str) -> None:
+        """Note a command that succeeded, for precondition checks.
+
+        The execution path calls this after every step; a session without it
+        fails the run at the first command, which is how its absence was found
+        (on hardware, not in the description tools that never call it).
+        """
+        self.command_history.append(command_name)
+
 
 def available_definitions() -> list[str]:
     """Names of the bundled definitions, for error messages and discovery."""

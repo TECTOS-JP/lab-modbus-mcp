@@ -108,3 +108,19 @@ def test_cli_pairs_are_parsed(entries, expected):
 def test_malformed_cli_pairs_are_refused(entry):
     with pytest.raises(ValueError, match="RESOURCE=DEFINITION"):
         _parse_instruments([entry])
+
+
+def test_the_session_satisfies_the_execution_contract():
+    """The runtime needs more from a session than the description tools do.
+
+    Found on hardware: a run failed at its first step with "object has no
+    attribute 'record_command'", because the session carried only what
+    describe_instrument and get_state read. This pins the whole surface the
+    execution path uses, so the next gap is caught without a device.
+    """
+    session = build_sessions({RESOURCE: E5CC})[RESOURCE]
+    for attribute in ("resource_name", "definition", "command_history"):
+        assert hasattr(session, attribute), attribute
+    session.record_command("first")
+    session.record_command("second")
+    assert session.command_history == ["first", "second"]
